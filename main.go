@@ -724,7 +724,7 @@ func printSymbols_grep(elfFs *ELFFile, need string) GrepOut {
 					out.SNdx = sNdx
 					out.Name = nm
 					out.Value = int(v)
-					out.Length = int(s)
+					out.Size = int(s)
 					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
 					return out
 				}
@@ -745,7 +745,7 @@ func printSymbols_grep(elfFs *ELFFile, need string) GrepOut {
 					out.SNdx = sNdx
 					out.Name = nm
 					out.Value = int(v)
-					out.Length = int(s)
+					out.Size = int(s)
 
 					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
 					return out
@@ -768,7 +768,7 @@ func printSymbols_grep(elfFs *ELFFile, need string) GrepOut {
 					out.SNdx = sNdx
 					out.Name = nm
 					out.Value = int(v)
-					out.Length = int(s)
+					out.Size = int(s)
 
 					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
 					return out
@@ -791,7 +791,7 @@ func printSymbols_grep(elfFs *ELFFile, need string) GrepOut {
 					out.SNdx = sNdx
 					out.Name = nm
 					out.Value = int(v)
-					out.Length = int(s)
+					out.Size = int(s)
 
 					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
 					return out
@@ -1069,9 +1069,11 @@ func checkError(e error) {
 		panic(e)
 	}
 }
-func GetGrepAddr(bin string, need string) (error, int) {
+func GetGrepAddr(bin string, need string) (error, Out) {
 	var target ELFFile
-
+	var res Out
+	res.Value = 0
+	res.Size = 0
 	target.Fh, target.err = os.Open(bin)
 	checkError(target.err)
 	defer target.Fh.Close()
@@ -1080,7 +1082,7 @@ func GetGrepAddr(bin string, need string) (error, int) {
 
 	if isElf(target.Ident[:4]) == false {
 		//fmt.Println("This is not an Elf binary")
-		return errors.New("this is not an Elf binary"), 0
+		return errors.New("this is not an Elf binary"), res
 		//os.Exit(1)
 	}
 	target.setArch()
@@ -1091,9 +1093,11 @@ func GetGrepAddr(bin string, need string) (error, int) {
 	if out.Name != "" {
 		//偏置 0x400000 4194304
 		fmt.Println(out)
-		return nil, out.Value - 4194304
+		res.Value = out.Value - 4194304
+		res.Size = out.Size
+		return nil, res
 	}
-	return errors.New("not find grep string"), 0
+	return errors.New("not find grep string"), res
 }
 
 //func main() {

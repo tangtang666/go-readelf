@@ -23,10 +23,14 @@ type SYMTable struct {
 }
 
 type GrepOut struct {
-	SNdx   uint32
-	Value  int
-	Name   string
-	Length int
+	SNdx  uint32
+	Value int
+	Name  string
+	Size  int
+}
+type Out struct {
+	Value int
+	Size  int
 }
 
 type ELFFile struct {
