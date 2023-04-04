@@ -22,6 +22,12 @@ type SYMTable struct {
 	SymbolName []string
 }
 
+type GrepOut struct {
+	SNdx  uint32
+	Value int
+	Name  string
+}
+
 type ELFFile struct {
 	Fh          *os.File
 	Ident       [16]byte

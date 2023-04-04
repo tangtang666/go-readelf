@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -55,7 +56,6 @@ func (elfFs *ELFFile) mapHeader() {
 //Calculate the size of Section Header Table = Shnum * Shentsize
 
 func (elfFs *ELFFile) getSections() {
-
 	if h, ok := elfFs.Hdr.(*elf.Header64); ok {
 		shdrTableSize := h.Shentsize * h.Shnum
 
@@ -105,8 +105,41 @@ func (elfFs *ELFFile) getSections() {
 		}
 	}
 }
+func (elfFs *ELFFile) getSymbols_bygrep(need string) GrepOut {
+	var dsymtabNdx uint32
+	var out GrepOut
+	if dsymtabNdx = getSectionNdx(".dynsym", elfFs); dsymtabNdx != 0 {
+		var dynstrNdx uint32
+		dynstrNdx = getSectionNdx(".dynstr", elfFs)
+		elfFs.loadSymbols(dsymtabNdx, dynstrNdx, DynSym)
+
+		fmt.Printf("%d entries found in .dynsym\n", len(elfFs.DynSymbols))
+		out = printSymbols_grep(elfFs, need)
+		if out.Name != "" {
+			return out
+		}
+	} else {
+		fmt.Println("No Dynamic symbols found - .dynsym missing from target")
+	}
+
+	var symtabNdx uint32
+	var symstrNdx uint32
+	if symtabNdx = getSectionNdx(".symtab", elfFs); symtabNdx != 0 {
+		symstrNdx = getSectionNdx(".strtab", elfFs)
+		elfFs.loadSymbols(symtabNdx, symstrNdx, Sym)
+		fmt.Printf("%d entries found in .symtab\n", len(elfFs.Symbols))
+		out = printSymbols_grep(elfFs, need)
+		if out.Name != "" {
+			return out
+		}
+	} else {
+		fmt.Println("Section .symtab mising -- Binary is stripped no exported symbols available !")
+	}
+	return out
+}
 
 func (elfFs *ELFFile) getSymbols() {
+
 	var dsymtabNdx uint32
 	if dsymtabNdx = getSectionNdx(".dynsym", elfFs); dsymtabNdx != 0 {
 		var dynstrNdx uint32
@@ -583,7 +616,6 @@ func printRelocations(elfFs *ELFFile) {
 		}
 	}
 }
-
 func printSymbols(elfFs *ELFFile) {
 	var symPresent, dsymPresent bool
 	var ndsym, nsym int
@@ -608,7 +640,11 @@ func printSymbols(elfFs *ELFFile) {
 				vis := elf.ST_VISIBILITY(sym.(*elf.Sym32).Info)
 				sec := sym.(*elf.Sym32).Shndx
 				nm := elfFs.DynSymbolsName[sym.(*elf.Sym32).Name]
-				fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
+				if nm == "station/version.Version.str" {
+					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
+					break
+				}
+				//fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
 			}
 		}
 
@@ -656,6 +692,107 @@ func printSymbols(elfFs *ELFFile) {
 		}
 	}
 
+}
+
+func printSymbols_grep(elfFs *ELFFile, need string) GrepOut {
+	var symPresent, dsymPresent bool
+	var ndsym, nsym int
+	var out GrepOut
+	if ndsym = len(elfFs.DynSymbols); ndsym > 0 {
+		dsymPresent = true
+	}
+	if nsym = len(elfFs.Symbols); nsym > 0 {
+		symPresent = true
+	}
+	fmt.Println("dsymPresent ", dsymPresent)
+	fmt.Println("symPresent ", symPresent)
+
+	switch elfFs.FileHdr.Arch {
+	case elf.ELFCLASS32:
+		fmt.Printf("32  Num:\tValue\t\tSize \tType\t\tBind\t\tVis\t\tNdx\t\tName\n")
+		if dsymPresent {
+			for sNdx := uint32(0); sNdx < uint32(ndsym); sNdx++ {
+				sym := elfFs.DynSymbols[sNdx]
+				v := sym.(*elf.Sym32).Value
+				s := sym.(*elf.Sym32).Size
+				t := elf.ST_TYPE(sym.(*elf.Sym32).Info)
+				b := elf.ST_BIND(sym.(*elf.Sym32).Info)
+				vis := elf.ST_VISIBILITY(sym.(*elf.Sym32).Info)
+				sec := sym.(*elf.Sym32).Shndx
+				nm := elfFs.DynSymbolsName[sym.(*elf.Sym32).Name]
+				if nm == need {
+					out.SNdx = sNdx
+					out.Name = nm
+					out.Value = int(v)
+					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
+					return out
+				}
+			}
+		}
+
+		if symPresent {
+			for sNdx := uint32(0); sNdx < uint32(nsym); sNdx++ {
+				sym := elfFs.Symbols[sNdx]
+				v := sym.(*elf.Sym32).Value
+				s := sym.(*elf.Sym32).Size
+				t := elf.ST_TYPE(sym.(*elf.Sym32).Info)
+				b := elf.ST_BIND(sym.(*elf.Sym32).Info)
+				vis := elf.ST_VISIBILITY(sym.(*elf.Sym32).Info)
+				sec := sym.(*elf.Sym32).Shndx
+				nm := elfFs.SymbolsName[sym.(*elf.Sym32).Name]
+				if nm == need {
+					out.SNdx = sNdx
+					out.Name = nm
+					out.Value = int(v)
+					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
+					return out
+				}
+			}
+		}
+	case elf.ELFCLASS64:
+		fmt.Printf("64  Num:\tValue\t\tSize \tType\t\tBind\t\tVis\t\tNdx\t\tName\n")
+		if dsymPresent {
+			for sNdx := uint32(0); sNdx < uint32(ndsym); sNdx++ {
+				sym := elfFs.DynSymbols[sNdx]
+				v := sym.(*elf.Sym64).Value
+				s := sym.(*elf.Sym64).Size
+				t := elf.ST_TYPE(sym.(*elf.Sym64).Info)
+				b := elf.ST_BIND(sym.(*elf.Sym64).Info)
+				vis := elf.ST_VISIBILITY(sym.(*elf.Sym64).Info)
+				sec := sym.(*elf.Sym64).Shndx
+				nm := elfFs.DynSymbolsName[sym.(*elf.Sym64).Name]
+				if nm == need {
+					out.SNdx = sNdx
+					out.Name = nm
+					out.Value = int(v)
+					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
+					return out
+				}
+
+			}
+		}
+
+		if symPresent {
+			for sNdx := uint32(0); sNdx < uint32(nsym); sNdx++ {
+				sym := elfFs.Symbols[sNdx]
+				v := sym.(*elf.Sym64).Value
+				s := sym.(*elf.Sym64).Size
+				t := elf.ST_TYPE(sym.(*elf.Sym64).Info)
+				b := elf.ST_BIND(sym.(*elf.Sym64).Info)
+				vis := elf.ST_VISIBILITY(sym.(*elf.Sym64).Info)
+				sec := sym.(*elf.Sym64).Shndx
+				nm := elfFs.SymbolsName[sym.(*elf.Sym64).Name]
+				if nm == need {
+					out.SNdx = sNdx
+					out.Name = nm
+					out.Value = int(v)
+					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
+					return out
+				}
+			}
+		}
+	}
+	return out
 }
 
 func printSections(ElfSections SHDRTable, numSec uint16, secOff interface{}) {
@@ -819,7 +956,8 @@ func printHeader(hdr interface{}) {
 	return
 }
 
-func main() {
+func main_old() {
+	fmt.Println("run tl")
 	if len(os.Args) < 3 {
 		usage()
 		os.Exit(1)
@@ -866,6 +1004,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	fmt.Println("optSymbols ", optSymbols)
 
 	if optHeader {
 		printHeader(target.Hdr)
@@ -882,6 +1021,9 @@ func main() {
 	}
 
 	if optSymbols {
+		fmt.Println("optSections ", optSections)
+		fmt.Println("optSections ", optSections)
+
 		if optSections == false {
 			target.getSections()
 		}
@@ -920,7 +1062,39 @@ func checkError(e error) {
 		panic(e)
 	}
 }
+func GetGrepAddr(bin string, need string) (error, int) {
+	var target ELFFile
 
+	target.Fh, target.err = os.Open(bin)
+	checkError(target.err)
+	defer target.Fh.Close()
+
+	target.Fh.Read(target.Ident[:16])
+
+	if isElf(target.Ident[:4]) == false {
+		//fmt.Println("This is not an Elf binary")
+		return errors.New("this is not an Elf binary"), 0
+		//os.Exit(1)
+	}
+	target.setArch()
+	target.mapHeader()
+	target.getSections()
+
+	out := target.getSymbols_bygrep(need)
+	if out.Name != "" {
+		//偏置 0x400000 4194304
+		return nil, out.Value - 4194304
+	}
+	return errors.New("not find grep string"), 0
+}
+func main() {
+
+	bin := "Edge_client_arm"
+	err, out := GetGrepAddr(bin, "station/version.Version.str")
+	if err == nil {
+		fmt.Println("out ", out)
+	}
+}
 func isElf(magic []byte) bool {
 	return !(magic[0] != '\x7f' || magic[1] != 'E' || magic[2] != 'L' || magic[3] != 'F')
 }
