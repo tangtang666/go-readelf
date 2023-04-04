@@ -1,4 +1,4 @@
-package main
+package readelf
 
 import (
 	"debug/elf"
@@ -23,9 +23,10 @@ type SYMTable struct {
 }
 
 type GrepOut struct {
-	SNdx  uint32
-	Value int
-	Name  string
+	SNdx   uint32
+	Value  int
+	Name   string
+	Length int
 }
 
 type ELFFile struct {

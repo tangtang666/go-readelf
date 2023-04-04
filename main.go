@@ -1,4 +1,4 @@
-package main
+package readelf
 
 import (
 	"bytes"
@@ -724,6 +724,7 @@ func printSymbols_grep(elfFs *ELFFile, need string) GrepOut {
 					out.SNdx = sNdx
 					out.Name = nm
 					out.Value = int(v)
+					out.Length = int(s)
 					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
 					return out
 				}
@@ -744,6 +745,8 @@ func printSymbols_grep(elfFs *ELFFile, need string) GrepOut {
 					out.SNdx = sNdx
 					out.Name = nm
 					out.Value = int(v)
+					out.Length = int(s)
+
 					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
 					return out
 				}
@@ -765,6 +768,8 @@ func printSymbols_grep(elfFs *ELFFile, need string) GrepOut {
 					out.SNdx = sNdx
 					out.Name = nm
 					out.Value = int(v)
+					out.Length = int(s)
+
 					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
 					return out
 				}
@@ -786,6 +791,8 @@ func printSymbols_grep(elfFs *ELFFile, need string) GrepOut {
 					out.SNdx = sNdx
 					out.Name = nm
 					out.Value = int(v)
+					out.Length = int(s)
+
 					fmt.Printf("  %-5d %08x\t%d\t%s\t%s\t%s\t%d\t%s\n", sNdx, v, s, t, b, vis, sec, nm)
 					return out
 				}
@@ -1083,18 +1090,24 @@ func GetGrepAddr(bin string, need string) (error, int) {
 	out := target.getSymbols_bygrep(need)
 	if out.Name != "" {
 		//偏置 0x400000 4194304
+		fmt.Println(out)
 		return nil, out.Value - 4194304
 	}
 	return errors.New("not find grep string"), 0
 }
-func main() {
 
-	bin := "Edge_client_arm"
-	err, out := GetGrepAddr(bin, "station/version.Version.str")
-	if err == nil {
-		fmt.Println("out ", out)
-	}
-}
+//func main() {
+//
+//	bin := "Edge_client_arm"
+//	err, out := GetGrepAddr(bin, "station/version.Version.str")
+//	if err == nil {
+//		fmt.Println("out ", out)
+//		fmt.Printf("0x%06X ", out)
+//	}
+//
+//
+//}
+
 func isElf(magic []byte) bool {
 	return !(magic[0] != '\x7f' || magic[1] != 'E' || magic[2] != 'L' || magic[3] != 'F')
 }
