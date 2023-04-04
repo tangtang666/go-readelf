@@ -1092,7 +1092,7 @@ func GetGrepAddr(bin string, need string) (error, Out) {
 	out := target.getSymbols_bygrep(need)
 	if out.Name != "" {
 		//偏置 0x400000 4194304
-		fmt.Println(out)
+		//fmt.Println(out)
 		res.Value = out.Value - 4194304
 		res.Size = out.Size
 		return nil, res
